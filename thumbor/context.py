@@ -171,6 +171,7 @@ class RequestParameters:  # pylint: disable=too-few-public-methods,too-many-inst
         request=None,
         max_age=None,
         auto_png_to_jpg=None,
+        custom_result_storage_name=None,
     ):
         self.debug = bool(debug)
         self.meta = bool(meta)
@@ -238,6 +239,7 @@ class RequestParameters:  # pylint: disable=too-few-public-methods,too-many-inst
         self.max_age = max_age
         self.auto_png_to_jpg = auto_png_to_jpg
         self.headers = None
+        self.custom_result_storage_name = custom_result_storage_name
 
         if request:
             self.url = request.path

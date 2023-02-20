@@ -32,7 +32,8 @@ class Storage(BaseStorage):
         )
 
     async def put(self, image_bytes):
-        file_abspath = self.normalize_path(self.context.request.url)
+        path = self.get_path()
+        file_abspath = self.normalize_path(path)
         if not self.validate_path(file_abspath):
             logger.warning(
                 "[RESULT_STORAGE] unable to write outside root path: %s",
@@ -55,7 +56,7 @@ class Storage(BaseStorage):
         move(temp_abspath, file_abspath)
 
     async def get(self):
-        path = self.context.request.url
+        path = self.get_path()
         file_abspath = self.normalize_path(path)
 
         if not self.validate_path(file_abspath):
@@ -156,9 +157,15 @@ class Storage(BaseStorage):
         timediff = datetime.now() - datetime.fromtimestamp(getmtime(path))
         return timediff.total_seconds() > expire_in_seconds
 
+    def get_path(self):
+        if self.context.custom_result_storage_name is not None:
+            return self.context.custom_result_storage_name
+        return self.context.request.url
+
+
     @deprecated("Use result's last_modified instead")
     def last_updated(self):
-        path = self.context.request.url
+        path = self.get_path()
         file_abspath = self.normalize_path(path)
         if not self.validate_path(file_abspath):
             logger.warning(
