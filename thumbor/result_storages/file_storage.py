@@ -17,6 +17,7 @@ from uuid import uuid4
 
 import pytz
 
+from thumbor.context import Context
 from thumbor.engines import BaseEngine
 from thumbor.result_storages import BaseStorage, ResultStorageResult
 from thumbor.utils import deprecated, logger
@@ -158,9 +159,15 @@ class Storage(BaseStorage):
         return timediff.total_seconds() > expire_in_seconds
 
     def get_path(self):
-        if self.context.custom_result_storage_name is not None:
-            return self.context.custom_result_storage_name
-        return self.context.request.url
+        context = None
+        if isinstance(self.context, Context):
+            context = self.context.request
+        else:
+            context = self.context
+
+        if context.custom_result_storage_name is not None:
+            return context.custom_result_storage_name
+        return context.request.url
 
 
     @deprecated("Use result's last_modified instead")
