@@ -167,8 +167,8 @@ class Storage(BaseStorage):
 
         if context.custom_result_storage_name is not None:
             return context.custom_result_storage_name
-        return context.request.url
 
+        return context.url
 
     @deprecated("Use result's last_modified instead")
     def last_updated(self):
