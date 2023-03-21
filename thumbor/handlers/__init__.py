@@ -884,9 +884,18 @@ class BaseHandler(tornado.web.RequestHandler):
 
             self.context.metrics.incr("storage.miss")
 
+            start = datetime.datetime.now()
+
             loader_result = await self.context.modules.loader.load(
                 self.context, url
             )
+
+            finish = datetime.datetime.now()
+            self.context.metrics.timing(
+                "loader.load_time",
+                (finish - start).total_seconds() * 1000,
+            )
+
         finally:
             self.release_url_lock(url)
 
