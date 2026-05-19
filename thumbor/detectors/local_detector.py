@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # thumbor imaging service
@@ -51,7 +50,7 @@ class CascadeLoaderDetector(BaseDetector):
         )
         faces_scaled = []
 
-        for (posx, posy, width, height) in faces:
+        for posx, posy, width, height in faces:
             faces_scaled.append(
                 ((posx.item(), posy.item(), width.item(), height.item()), 0)
             )

@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # thumbor imaging service
@@ -28,14 +27,10 @@ except ImportError:
 
 WEBP_SIDE_LIMIT = 16383
 
-SVG_RE = re.compile(
-    b"<svg\s[^>]*([\"'])http[^\"']*svg[^\"']*",  # pylint: disable=anomalous-backslash-in-string
-    re.I,
-)
+SVG_RE = re.compile(rb"<svg\b[^>]*?>", re.I)
 
 
 class EngineResult:
-
     COULD_NOT_LOAD_IMAGE = "could not load image"
 
     def __init__(
@@ -135,8 +130,8 @@ class BaseEngine:
             img_mime = "video/mp4"
         elif buffer.startswith(b"\x1aE\xdf\xa3"):
             img_mime = "video/webm"
-        elif buffer.startswith(b"\x49\x49\x2A\x00") or buffer.startswith(
-            b"\x4D\x4D\x00\x2A"
+        elif buffer.startswith(b"\x49\x49\x2a\x00") or buffer.startswith(
+            b"\x4d\x4d\x00\x2a"
         ):
             img_mime = "image/tiff"
         elif SVG_RE.search(buffer[:2048].replace(b"\0", b"")):

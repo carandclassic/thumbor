@@ -1,5 +1,5 @@
 ARG PYTHON_VERSION
-FROM python:${PYTHON_VERSION}-bullseye AS builder-image
+FROM python:${PYTHON_VERSION}-trixie AS builder-image
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG THUMBOR_VERSION
@@ -21,17 +21,16 @@ RUN apt-get update && \
         build-essential && \
 	apt-get clean && rm -rf /var/lib/apt/lists/*
 
+RUN mkdir /tmp/thumbor_dist
+COPY dist/* /tmp/thumbor_dist
 
 RUN python3 -m venv /home/thumbor/venv
 ENV PATH="/home/thumbor/venv/bin:$PATH"
 
-COPY requirements.txt .
-
 RUN pip3 install --no-cache-dir wheel && \
-    pip3 install --no-cache-dir -r requirements.txt && \
-    pip3 install --no-cache-dir thumbor==${THUMBOR_VERSION}
+    pip3 install --no-cache-dir --find-links=/tmp/thumbor_dist thumbor[all]==${THUMBOR_VERSION}
 
-FROM python:${PYTHON_VERSION}-slim-bullseye AS runner-image
+FROM python:${PYTHON_VERSION}-slim-trixie AS runner-image
 
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \

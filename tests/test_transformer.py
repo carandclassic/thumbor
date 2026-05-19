@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # thumbor imaging service
@@ -153,14 +152,14 @@ class TransformerTestCase(TestCase):
         )
         trans = Transformer(context)
 
-        with expect.error_to_happen(Exception, message="x"):
+        with expect.error_to_happen(IOError, message="some-io-error"):
             await trans.transform()
 
         expect(test_data.engine.calls["resize"]).to_length(0)
 
     @gen_test
     async def test_can_fit_in(self):
-        for (test_data, (width, height, should_resize)) in FIT_IN_CROP_DATA:
+        for test_data, (width, height, should_resize) in FIT_IN_CROP_DATA:
             context = test_data.to_context()
             engine = context.modules.engine
             trans = Transformer(context)

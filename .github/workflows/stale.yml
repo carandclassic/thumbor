@@ -17,7 +17,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/stale@v4
+      - uses: actions/stale@v10
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           stale-issue-message: This issue is stale because it has been open 30 days
@@ -37,4 +37,6 @@ jobs:
           days-before-issue-close: 45
           days-before-pr-close: 30
           exempt-draft-pr: true
+          exempt-issue-labels: do-not-reap
+          exempt-pr-labels: do-not-reap
           operations-per-run: 300

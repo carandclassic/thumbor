@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # thumbor imaging service
@@ -76,12 +75,12 @@ class MockSyncDetector(BaseDetector):
 
 class MockErrorSyncDetector(BaseDetector):
     async def detect(self):
-        raise Exception("x")
+        raise IOError("some-io-error")
 
 
 # Test Data - pylint: disable=too-many-locals,too-many-instance-attributes
 class TestData:
-    def __init__(
+    def __init__(  # pylint: disable=too-many-positional-arguments
         self,
         source_width,
         source_height,
@@ -100,7 +99,6 @@ class TestData:
         meta=False,
         stretch=False,
     ):
-
         self.source_width = source_width
         self.source_height = source_height
         self.target_width = target_width

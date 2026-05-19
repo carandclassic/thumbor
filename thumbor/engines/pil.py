@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # thumbor imaging service
@@ -8,17 +7,14 @@
 # http://www.opensource.org/licenses/mit-license
 # Copyright (c) 2011 globo.com thumbor@googlegroups.com
 
-import os
 from io import BytesIO
-from subprocess import PIPE, Popen
-from tempfile import mkstemp
 
 import piexif
+from JpegIPTC import JpegIPTC
 from PIL import Image, ImageDraw, ImageFile, ImageSequence, JpegImagePlugin
 from PIL import features as pillow_features
 
 from thumbor.engines import BaseEngine
-from thumbor.engines.extensions.pil import GifWriter
 from thumbor.filters.fill import Filter
 from thumbor.utils import deprecated, ensure_srgb, get_color_space, logger
 
@@ -67,10 +63,11 @@ KEEP_EXIF_COPYRIGHT_TAGS = [
 ImageFile.MAXBLOCK = 2**25
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-DECOMPRESSION_BOMB_EXCEPTIONS = (Image.DecompressionBombWarning,)
-
-if hasattr(Image, "DecompressionBombError"):
-    DECOMPRESSION_BOMB_EXCEPTIONS += (Image.DecompressionBombError,)
+DECOMPRESSION_BOMB_EXCEPTIONS = (Image.DecompressionBombWarning,) + (
+    (Image.DecompressionBombError,)
+    if hasattr(Image, "DecompressionBombError")
+    else ()
+)
 
 
 class Engine(BaseEngine):
@@ -80,6 +77,7 @@ class Engine(BaseEngine):
         self.qtables = None
         self.original_mode = None
         self.exif = None
+        self.iptc = None
 
         try:
             if self.context.config.MAX_PIXELS is None or int(
@@ -112,6 +110,11 @@ class Engine(BaseEngine):
         self.icc_profile = img.info.get("icc_profile")
         self.exif = img.info.get("exif")
         self.original_mode = img.mode
+
+        if self.context.config.PRESERVE_IPTC_INFO:
+            jpegiptc_object = JpegIPTC()
+            jpegiptc_object.load_from_binarydata(buffer)
+            self.iptc = jpegiptc_object.get_raw_iptc()
 
         if hasattr(img, "layer"):
             self.subsampling = JpegImagePlugin.get_sampling(img)
@@ -164,14 +167,14 @@ class Engine(BaseEngine):
         )
 
         available = {
-            "LANCZOS": Image.LANCZOS,
-            "NEAREST": Image.NEAREST,
-            "BILINEAR": Image.BILINEAR,
-            "BICUBIC": Image.BICUBIC,
-            "HAMMING": Image.HAMMING,
+            "LANCZOS": Image.Resampling.LANCZOS,
+            "NEAREST": Image.Resampling.NEAREST,
+            "BILINEAR": Image.Resampling.BILINEAR,
+            "BICUBIC": Image.Resampling.BICUBIC,
+            "HAMMING": Image.Resampling.HAMMING,
         }
 
-        return available.get(resample.upper(), Image.LANCZOS)
+        return available.get(resample.upper(), Image.Resampling.LANCZOS)
 
     def draw_rectangle(self, x, y, width, height):
         # Nasty retry if the image is loaded for the first time and it's truncated
@@ -216,19 +219,19 @@ class Engine(BaseEngine):
         # PIL rotates counter clockwise
 
         if degrees == 90:
-            self.image = self.image.transpose(Image.ROTATE_90)
+            self.image = self.image.transpose(Image.Transpose.ROTATE_90)
         elif degrees == 180:
-            self.image = self.image.transpose(Image.ROTATE_180)
+            self.image = self.image.transpose(Image.Transpose.ROTATE_180)
         elif degrees == 270:
-            self.image = self.image.transpose(Image.ROTATE_270)
+            self.image = self.image.transpose(Image.Transpose.ROTATE_270)
         else:
             self.image = self.image.rotate(degrees, expand=1)
 
     def flip_vertically(self):
-        self.image = self.image.transpose(Image.FLIP_TOP_BOTTOM)
+        self.image = self.image.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
 
     def flip_horizontally(self):
-        self.image = self.image.transpose(Image.FLIP_LEFT_RIGHT)
+        self.image = self.image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
 
     def get_default_extension(self):
         # extension is not present => force JPEG or PNG
@@ -262,7 +265,7 @@ class Engine(BaseEngine):
                 # libimagequant might not be enabled on compile time
                 # but it's better than default octree for RGBA images
                 quantize_method = (
-                    Image.LIBIMAGEQUANT
+                    Image.Quantize.LIBIMAGEQUANT
                     if pillow_features.check("libimagequant")
                     else None
                 )
@@ -334,9 +337,9 @@ class Engine(BaseEngine):
             ext == ".png"
             and self.context.config.PNG_COMPRESSION_LEVEL is not None
         ):
-            options[
-                "compress_level"
-            ] = self.context.config.PNG_COMPRESSION_LEVEL
+            options["compress_level"] = (
+                self.context.config.PNG_COMPRESSION_LEVEL
+            )
 
         if options["quality"] is None:
             options["quality"] = self.context.config.QUALITY
@@ -434,53 +437,30 @@ class Engine(BaseEngine):
         img_buffer.close()
         self.extension = ext
 
+        if self.context.config.PRESERVE_IPTC_INFO:
+            jpegiptc_object_d = JpegIPTC()
+            jpegiptc_object_d.load_from_binarydata(results)
+            jpegiptc_object_d.set_raw_iptc(self.iptc)
+            newresults = jpegiptc_object_d.dump()
+            if newresults is not None:
+                results = newresults
+
         return results
 
     def read_multiple(self, images, extension=None):
-        gif_writer = GifWriter()
-        img_buffer = BytesIO()
-
-        duration = []
-        converted_images = []
-        coordinates = []
-        dispose = []
-
-        for image in images:
-            duration.append(image.info.get("duration", 80) / 1000)
-            converted_images.append(image.convert("RGB"))
-            coordinates.append((0, 0))
-            dispose.append(1)
-
-        loop = int(self.image.info.get("loop", 1))
-
-        images = gif_writer.convertImagesToPIL(converted_images, False, None)
-        gif_writer.writeGifToFile(
-            img_buffer, images, duration, loop, coordinates, dispose
+        self.image.format = FORMATS.get(
+            extension or self.extension, FORMATS[self.get_default_extension()]
         )
-
-        results = img_buffer.getvalue()
-        img_buffer.close()
-
-        tmp_fd, tmp_file_path = mkstemp()
-        temp_file = os.fdopen(tmp_fd, "wb")
-        temp_file.write(results)
-        temp_file.close()
-
-        command = ["gifsicle", "--colors", "256", tmp_file_path]
-
-        popen = Popen(  # pylint: disable=consider-using-with
-            command, stdout=PIPE
-        )
-        pipe = popen.stdout
-        pipe_output = pipe.read()
-        pipe.close()
-
-        if popen.wait() == 0:
-            results = pipe_output
-
-        os.remove(tmp_file_path)
-
-        return results
+        with BytesIO() as img_buffer:
+            images[0].save(
+                img_buffer,
+                self.image.format,
+                save_all=True,
+                append_images=images[1:],
+                duration=[im.info.get("duration", 80) / 1000 for im in images],
+                loop=int(self.image.info.get("loop", 1)),
+            )
+            return img_buffer.getvalue()
 
     @deprecated("Use image_data_as_rgb instead.")
     def get_image_data(self):

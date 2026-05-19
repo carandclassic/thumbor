@@ -208,6 +208,13 @@ Config.define(
     "Imaging",
 )
 Config.define(
+    "AUTO_PNG",
+    False,
+    "Specifies whether PNG format should be used automatically if the request accepts it "
+    "(via Accept header)",
+    "Imaging",
+)
+Config.define(
     "AUTO_PNG_TO_JPG",
     False,
     "Specifies whether a PNG image should be used automatically if the png image has "
@@ -273,6 +280,13 @@ Config.define(
     "PRESERVE_EXIF_COPYRIGHT_INFO",
     False,
     "Preserves Exif copyright information in generated images.",
+    "Imaging",
+)
+
+Config.define(
+    "PRESERVE_IPTC_INFO",
+    False,
+    "Preserves Jpeg IPTC information in generated images.",
     "Imaging",
 )
 
@@ -937,11 +951,7 @@ def format_value(value):
     if isinstance(value, str):
         return f"'{value}'"
     if isinstance(value, (tuple, list, set)):
-        representation = "[\n"
-        for item in value:
-            representation += f"#    {item}"
-        representation += "#]"
-        return representation
+        return "[\n" + "".join(f"#    {item}" for item in value) + "#]"
     return value
 
 

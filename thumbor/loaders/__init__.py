@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # thumbor imaging service
@@ -12,13 +11,12 @@ from typing import Dict
 
 
 class LoaderResult:
-
     ERROR_NOT_FOUND = "not_found"
     ERROR_UPSTREAM = "upstream"
     ERROR_TIMEOUT = "timeout"
     ERROR_BAD_REQUEST = "bad_request"
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-positional-arguments
         self,
         buffer: bytes = None,
         successful: bool = True,

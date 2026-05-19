@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # thumbor imaging service
@@ -52,7 +51,7 @@ def encode_multipart_formdata(fields, files):
         )
         lines.append(b"")
         lines.append(value)
-    for (key, filename, value) in files:
+    for key, filename, value in files:
         lines.append(b"--" + boundary)
         lines.append(
             b'Content-Disposition: form-data; name="%s"; filename="%s"'
@@ -214,7 +213,7 @@ class FilterTestCase(TestCase):
         image = Image.open(self.get_fixture_path(name))
         return image.convert(mode)
 
-    async def get_filtered(
+    async def get_filtered(  # pylint: disable=too-many-positional-arguments
         self,
         source_image,
         filter_name,

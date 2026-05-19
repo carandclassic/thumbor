@@ -1,7 +1,12 @@
 name: lint/formatter
 on:
   push:
+    branches:
+      - master
   pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - master
 
 permissions:
   contents: read # to fetch code (actions/checkout)
@@ -10,38 +15,37 @@ jobs:
   black:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: psf/black@stable
+      - uses: actions/checkout@v6
+      - uses: psf/black@c6755bb741b6481d6b3d3bb563c83fa060db96c9 # 26.3.1
         with:
           options: "--check --verbose"
   flake8:
     permissions:
       contents: read # to fetch code (actions/checkout)
-      checks: write # to update checks 
+      checks: write # to update checks
 
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v6
         with:
-          python-version: '3.x'
-      - uses: actions/checkout@v2
+          python-version: "3.x"
+      - uses: actions/checkout@v6
       - name: Install flake8
         run: pip install flake8
       - name: Run flake8
-        uses: suo/flake8-github-action@releases/v1
+        uses: suo/flake8-github-action@3e87882219642e01aa8a6bbd03b4b0adb8542c2a # v1 release
         with:
-          checkName: 'flake8'
+          checkName: "flake8"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   isort:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v6
         with:
-          python-version: '3.x'
-      - uses: actions/checkout@v2
+          python-version: "3.x"
+      - uses: actions/checkout@v6
       - name: Install isort
         run: pip install isort
       - name: Run isort
         run: isort thumbor tests --profile black
- 

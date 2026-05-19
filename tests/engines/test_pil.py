@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # thumbor imaging service
@@ -27,7 +26,6 @@ from tests.base import (
 from thumbor.config import Config
 from thumbor.context import Context
 from thumbor.engines.pil import Engine, KEEP_EXIF_COPYRIGHT_TAGS
-
 
 FIXTURES_PATH = abspath(join(dirname(__file__), "../fixtures/"))
 STORAGE_PATH = join(FIXTURES_PATH, "images")
@@ -91,6 +89,33 @@ class PilEngineTestCase(TestCase):
         expect(image_file.format).to_equal("PNG")
         expect(image_file.size).to_equal((100, 100))
 
+    def test_load_animated_gif(self):
+        engine = Engine(self.context)
+        with open(join(STORAGE_PATH, "animated.gif"), "rb") as image_file:
+            buffer = image_file.read()
+        expect(buffer).not_to_equal(None)
+        engine.load(buffer, None)
+
+        final_bytes = BytesIO(engine.read())
+        image_file = Image.open(final_bytes)
+        expect(image_file.format).to_equal("GIF")
+        expect(image_file.size).to_equal((100, 100))
+        expect(image_file.is_animated).to_be_true()
+
+    def test_load_rotating_earth_gif(self):
+        engine = Engine(self.context)
+        with open(
+            join(STORAGE_PATH, "Rotating_earth_(large).gif"), "rb"
+        ) as image_file:
+            buffer = image_file.read()
+        expect(buffer).not_to_equal(None)
+        engine.load(buffer, None)
+
+        final_bytes = BytesIO(engine.read())
+        image_file = Image.open(final_bytes)
+        expect(image_file.format).to_equal("GIF")
+        expect(image_file.size).to_equal((400, 400))
+
     def test_load_tif_16bit_per_channel_msb(self):
         engine = Engine(self.context)
         with open(
@@ -153,15 +178,15 @@ class PilEngineTestCase(TestCase):
 
     def test_can_set_resampling_filter(self):
         to_test = {
-            "LANCZOS": Image.LANCZOS,
-            "NEAREST": Image.NEAREST,
-            "BiLinear": Image.BILINEAR,
-            "bicubic": Image.BICUBIC,
-            "garbage": Image.LANCZOS,
+            "LANCZOS": Image.Resampling.LANCZOS,
+            "NEAREST": Image.Resampling.NEAREST,
+            "BiLinear": Image.Resampling.BILINEAR,
+            "bicubic": Image.Resampling.BICUBIC,
+            "garbage": Image.Resampling.LANCZOS,
         }
 
         if hasattr(Image, "HAMMING"):
-            to_test["HAMMING"] = Image.HAMMING
+            to_test["HAMMING"] = Image.Resampling.HAMMING
 
         for setting, expected in to_test.items():
             cfg = Config(PILLOW_RESAMPLING_FILTER=setting)
@@ -170,7 +195,7 @@ class PilEngineTestCase(TestCase):
 
         cfg = Config()
         engine = Engine(Context(config=cfg))
-        expect(engine.get_resize_filter()).to_equal(Image.LANCZOS)
+        expect(engine.get_resize_filter()).to_equal(Image.Resampling.LANCZOS)
 
     def test_resize_truncated_image(self):
         engine = Engine(self.context)

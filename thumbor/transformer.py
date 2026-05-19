@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # thumbor imaging service
@@ -14,12 +13,11 @@ import sys
 from thumbor.point import FocalPoint
 from thumbor.utils import logger
 
-TRIM_ENABLED = True
 try:
     from thumbor.ext.filters import _bounding_box
 except ImportError:
     logger.warning("Error importing bounding_box filter, trimming won't work")
-    TRIM_ENABLED = False
+    _bounding_box = None
 
 
 class Transformer:
@@ -44,7 +42,7 @@ class Transformer:
         )
         if (
             self.context.request.trim is None
-            or not TRIM_ENABLED
+            or _bounding_box is None
             or is_gifsicle
         ):
             return
@@ -180,10 +178,8 @@ class Transformer:
             self.context.request.detection_error = True
 
     async def do_smart_detection(self):
-        focal_points = await (
-            self.context.modules.storage.get_detector_data(
-                self.smart_storage_key
-            )
+        focal_points = await self.context.modules.storage.get_detector_data(
+            self.smart_storage_key
         )
         points_from_storage = focal_points is not None
         if focal_points is None:

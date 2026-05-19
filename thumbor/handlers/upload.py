@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # thumbor imaging service
@@ -38,7 +37,6 @@ class ImageUploadHandler(ImageApiHandler):
 
         # Check if the image uploaded is valid
         if self.validate(body):
-
             # Use the default filename for the uploaded images
             if not filename:
                 content_type = self.request.headers.get(

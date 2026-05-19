@@ -1,4 +1,3 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 # thumbor imaging service
@@ -37,7 +36,7 @@ HTTP_DATE_FMT = "%a, %d %b %Y %H:%M:%S GMT"
 
 
 class FetchResult:  # Data Object pylint: disable=too-few-public-methods
-    def __init__(
+    def __init__(  # pylint: disable=too-many-positional-arguments
         self,
         normalized=False,
         buffer=None,
@@ -126,11 +125,13 @@ class BaseHandler(tornado.web.RequestHandler):
         ).total_seconds() * 1000
 
         if self.context.request.smart:
-            self.context.metrics.incr("response.smart")
-            self.context.metrics.timing("response.smart", total_time)
+            self.context.metrics.incr("response.smart.count")
+            self.context.metrics.timing("response.smart.latency", total_time)
         else:
-            self.context.metrics.incr("response.none_smart")
-            self.context.metrics.timing("response.none_smart", total_time)
+            self.context.metrics.incr("response.none_smart.count")
+            self.context.metrics.timing(
+                "response.none_smart.latency", total_time
+            )
 
         should_store = (
             self.context.config.RESULT_STORAGE_STORES_UNSAFE
@@ -285,8 +286,8 @@ class BaseHandler(tornado.web.RequestHandler):
 
                 return
 
-            if not normalized:
-                normalized = self.context.request.engine.normalize()
+        if not normalized:
+            normalized = engine.normalize()
 
         self.context.transformer = Transformer(self.context)
 
@@ -296,9 +297,9 @@ class BaseHandler(tornado.web.RequestHandler):
         self.normalize_crops(normalized, req, engine)
 
         if req.meta:
-            self.context.transformer.engine = (
-                self.context.request.engine
-            ) = JSONEngine(engine, req.image_url, req.meta_callback)
+            self.context.transformer.engine = self.context.request.engine = (
+                JSONEngine(engine, req.image_url, req.meta_callback)
+            )
 
         await self.context.transformer.transform()
         await self.after_transform()
@@ -375,12 +376,12 @@ class BaseHandler(tornado.web.RequestHandler):
             block = data[i : i + 1]  # NOQA
             i += 1
 
-            if block == b"\x3B":
+            if block == b"\x3b":
                 break
 
             if block == b"\x21":
                 i += 1
-            elif block == b"\x2C":
+            elif block == b"\x2c":
                 frames += 1
                 i += 8
                 i = skip_color_table(i + 1, data[i])
@@ -463,6 +464,19 @@ class BaseHandler(tornado.web.RequestHandler):
 
         return False
 
+    def can_auto_convert_to_png(self):
+        auto_png = self.context.config.AUTO_PNG
+        accepts_png = self.accepts_mime_type("image/png")
+
+        if (
+            auto_png
+            and accepts_png
+            and not self.context.request.engine.is_multiple()
+        ):
+            return True
+
+        return False
+
     def define_image_type(self, context, result):
         if result is not None:
             if isinstance(result, ResultStorageResult):
@@ -506,6 +520,11 @@ class BaseHandler(tornado.web.RequestHandler):
             image_extension = ".heif"
             logger.debug(
                 "Image format set by AUTO_HEIF as %s.", image_extension
+            )
+        elif self.can_auto_convert_to_png():
+            image_extension = ".png"
+            logger.debug(
+                "Image format set by AUTO_PNG as %s.", image_extension
             )
         else:
             image_extension = context.request.engine.extension
@@ -654,14 +673,20 @@ class BaseHandler(tornado.web.RequestHandler):
 
             return
 
-        (results, content_type) = result
+        results, content_type = result
         await self._write_results_to_client(results, content_type)
 
         if should_store:
+            results = self._ensure_bytes(results)
             await self._store_results(result_storage, metrics, results)
 
         # can't cleanup before storing results as the storage requires context
         self._cleanup()
+
+    def _ensure_bytes(self, results):
+        if isinstance(results, str):
+            return results.encode()
+        return results
 
     def _cleanup(self):
         self.context.request_handler = None
@@ -713,7 +738,11 @@ class BaseHandler(tornado.web.RequestHandler):
             buffer = results
 
         # auto-convert configured?
-        should_vary = self.context.config.AUTO_WEBP
+        should_vary = (
+            self.context.config.AUTO_WEBP
+            or self.context.config.AUTO_AVIF
+            or self.context.config.AUTO_HEIF
+        )
         # we have image (not video)
         should_vary = should_vary and content_type.startswith("image/")
         # output format is not requested via format filter
@@ -802,7 +831,7 @@ class BaseHandler(tornado.web.RequestHandler):
         return prev_result
 
     @classmethod
-    def translate_crop_coordinates(
+    def translate_crop_coordinates(  # pylint: disable=too-many-positional-arguments
         cls,
         original_width,
         original_height,
@@ -813,7 +842,6 @@ class BaseHandler(tornado.web.RequestHandler):
         crop_right,
         crop_bottom,
     ):
-
         if original_width == width and original_height == height:
             return None
 
@@ -976,10 +1004,10 @@ class BaseHandler(tornado.web.RequestHandler):
     async def get_blacklist_contents(self):
         filename = "blacklist.txt"
 
-        exists = await (self.context.modules.storage.exists(filename))
+        exists = await self.context.modules.storage.exists(filename)
 
         if exists:
-            blacklist = await (self.context.modules.storage.get(filename))
+            blacklist = await self.context.modules.storage.get(filename)
 
             return blacklist.decode()
 
