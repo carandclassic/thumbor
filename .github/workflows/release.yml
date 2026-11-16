@@ -8,9 +8,11 @@ on:
     branches:
       - "master"
 
-permissions:
-  contents: read
-  packages: write
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CIBW_PROJECT_REQUIRES_PYTHON: ">=3.10"
@@ -19,9 +21,14 @@ env:
 jobs:
   # Heavily inspired on https://github.com/tornadoweb/tornado/blob/master/.github/workflows/build.yml
   build_sdist:
+    name: build_sdist
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # to fetch code (actions/checkout)
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
       - name: Set up Python
         id: setup-python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
@@ -42,6 +49,8 @@ jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read # to fetch code (actions/checkout)
     strategy:
       fail-fast: false
       matrix:
@@ -52,11 +61,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         name: Install Python
         with:
           python-version: ${{ env.python-version }}
-          cache: "pip" # caching pip dependencies
 
       - name: Build wheels
         uses: pypa/cibuildwheel@8d2b08b68458a16aeb24b64e68a09ab1c8e82084 # v3.4.1
@@ -84,12 +94,16 @@ jobs:
         if: github.event_name != 'pull_request'
         with:
           user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
+          password: ${{ secrets.PYPI_API_TOKEN }} # zizmor: ignore[secrets-outside-env,use-trusted-publishing] upstream publishes with an API token; no PyPI environment here
           skip-existing: true
 
   docker:
+    name: docker
     needs: upload_pypi
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # to fetch code (actions/checkout)
+      packages: write # to push images and build cache to ghcr.io
     strategy:
       matrix:
         python_version:
@@ -103,6 +117,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: "0"
+          persist-credentials: false
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -120,7 +135,9 @@ jobs:
 
       - name: Enable docker cache push
         if: github.event_name != 'pull_request'
-        run: echo "CACHE_TO=type=registry,ref=ghcr.io/thumbor/thumbor:buildcache-${{ matrix.python_version }},mode=max" >> $GITHUB_ENV
+        run: echo "CACHE_TO=type=registry,ref=ghcr.io/thumbor/thumbor:buildcache-${PYTHON_VERSION},mode=max" >> $GITHUB_ENV
+        env:
+          PYTHON_VERSION: ${{ matrix.python_version }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
@@ -142,15 +159,15 @@ jobs:
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: quay.io
-          username: ${{ secrets.QUAY_IO_USERNAME }}
-          password: ${{ secrets.QUAY_IO_PASSWORD }}
+          username: ${{ secrets.QUAY_IO_USERNAME }} # zizmor: ignore[secrets-outside-env] upstream registry credentials; no environment here
+          password: ${{ secrets.QUAY_IO_PASSWORD }} # zizmor: ignore[secrets-outside-env] upstream registry credentials; no environment here
 
       - name: Login to Docker Hub
         if: github.event_name != 'pull_request'
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }} # zizmor: ignore[secrets-outside-env] upstream registry credentials; no environment here
+          password: ${{ secrets.DOCKERHUB_PASSWORD }} # zizmor: ignore[secrets-outside-env] upstream registry credentials; no environment here
 
       - name: Docker meta
         id: meta
@@ -172,7 +189,7 @@ jobs:
             type=sha
 
       - name: Build and push
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v5
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
           file: ./docker/Dockerfile
