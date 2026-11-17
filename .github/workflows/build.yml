@@ -8,11 +8,15 @@ on:
     branches:
       - master
 
-permissions:
-  checks: write # to create new checks (coverallsapp/github-action)
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
+    name: build
     permissions:
       contents: read # to fetch code (actions/checkout)
       checks: write # to create new checks (coverallsapp/github-action)
@@ -34,9 +38,13 @@ jobs:
           key: thumbor-docker-${{ matrix.image-tag }}-{hash}
           restore-keys: |
             thumbor-docker-${{ matrix.image-tag }}-
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
       - name: Build test image
-        run: docker build -t test_image -f TestDockerfile --build-arg PYTHON_VERSION=${{ matrix.image-tag }} .
+        run: docker build -t test_image -f TestDockerfile --build-arg PYTHON_VERSION="$PYTHON_VERSION" .
+        env:
+          PYTHON_VERSION: ${{ matrix.image-tag }}
       - name: Start test container
         run: |
           docker run -dt --name thumbor_test -v $(pwd):/app test_image
@@ -55,18 +63,21 @@ jobs:
       - name: Generate lcov
         run: docker exec thumbor_test coverage lcov
       - name: Coveralls
-        uses: coverallsapp/github-action@648a8eb78e6d50909eff900e4ec85cab4524a45b # 2.3.6
+        uses: coverallsapp/github-action@648a8eb78e6d50909eff900e4ec85cab4524a45b # v2.3.6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-lcov: coverage.lcov
           flag-name: run-${{ matrix.image-tag }}
           parallel: true
   finish:
+    name: finish
     needs: build
+    permissions:
+      checks: write # to create new checks (coverallsapp/github-action)
     runs-on: ubuntu-latest
     steps:
       - name: Coveralls Finished
-        uses: coverallsapp/github-action@648a8eb78e6d50909eff900e4ec85cab4524a45b # 2.3.6
+        uses: coverallsapp/github-action@648a8eb78e6d50909eff900e4ec85cab4524a45b # v2.3.6
         with:
           github-token: ${{ secrets.github_token }}
           parallel-finished: true
